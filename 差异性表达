@@ -1,0 +1,357 @@
+###ballgown包处理数据
+{
+  #加载ballgown包
+  library(ballgown)
+  #查看当前路径
+  getwd()
+  #设置存储路径
+  setwd("E:/scientific_research/Transcriptome_analysis")
+  #重新查看更改过后的当前路径
+  getwd()
+  #读取样本的表型数据（本例中表示每个样本的处理情况）
+  pheno_data = read.csv("E:\scientific_research\Transcriptome_analysis\row_DATA\A_sample/phenotype.csv")
+  #读取定量分析的表型数据（批量操作型）
+  bg = ballgown(dataDir = "E:\scientific_research\Transcriptome_analysis\row_DATA\A_sample/ballgown2", samplePattern = "A", meas = "all",pData = pheno_data)
+  #过滤掉表达量低的基因,即每一行所代表的基因，其后的各值都为0的
+  bg_filt = subset(bg,"rowMeans(texpr(bg))>1",genomesubset=TRUE)
+  
+  bg_filt_trans=bg_filt@expr[["trans"]]
+  #过滤掉重复基因所在行
+  index = duplicated(bg_filt_trans[9])
+  bg_filt_trans = bg_filt_trans[!index,]
+  #查看变量bg_filt_trans的数据类型
+  mode(bg_filt_trans)
+  #修剪bg_filt_trans列表为bg_filt_trans1
+  a <- c(-1,-2,-3,-4,-5,-6,-7,-8,-10,-11,-13,-15,-17,-19,-21,-23,-25,-27,-29,-31,-33,-35)
+  bg_filt_trans1=bg_filt_trans[,a]#此处不能直接输入-1，-2...此外还可以用"bg_filt_trans1=bg_filt_trans[,!grepl(名字A|名字B|...,colnames(bg_filt_trans))]"实现
+  
+  #feature:在那个水平计算，可选“gene”,"transcript","exon","intron"
+  #协变量covariate是对因变量有影响的变量，它不是研究者研究的自变量，不为实验者操作，但对试验有影响。
+  #主变量adjustvars
+  #getFC可以指定输出结果显示组间表达量的foldchange(差异倍数，FC=Exp x1/x2)
+  #meas:measurement采用哪种计算方式
+  #mod0=model.matrix(~?, pData(bg_filt)$treat)
+  #mod=model.matrix(~?, pData(bg_filt)$treat)
+  #results_tanscripts=stattest(bg_filt,feature = "transcript",covariat = ?,adjustvars = ?,mod0 = mod0,mod = mod,meas = "FPKM")本例中无重复，此法不可用来做差异化分析。
+}
+
+####读出并保存数据
+{
+  write.table(bg_filt_trans1,file = "bg_filt_trans.csv",sep = ",",row.names = F) #列表保存为.csv格式
+  write.table(bg_filt_trans1,file = "bg_filt_trans.txt",sep = " ",row.names = F) #列表保存为.txt格式
+}
+getwd()
+#设置存储路径
+setwd("E:/scientific_research/Transcriptome_analysis")
+#重新查看更改过后的当前路径
+getwd()
+
+#读入数据为列表格式，以第一列为行名称
+{
+  data = read.table("bg_filt_trans.txt",
+                   header = T,
+                   row.names = 1,)
+  }
+
+#去掉列表中中表达量异常的基因
+{
+  data[data==0] = NA
+  data = na.omit(data)
+  attach(data)#将数据框添加到R搜索路径中
+  #data = subset(data,CON1<12&CON2<12&A15<12&A30<12&A60<12&A90<12&A120<12&B15<12&B30<12&B60<12&B90<12&B120<12)
+  detach(data)#将数据框从R搜索路径移除
+}
+
+#给列表重命名并重排序
+{
+  #重命名
+  {
+    library(reshape)
+    #使用该函数时变量名经常出问题。使用dplyr::rename重命名了变量，以便名称不再取决于变量，而取决于字符。后面如果再出现问题，跟换变量前后的位置即可
+    data = dplyr::rename(data,c("CON1"=FPKM.A1,"A15"=FPKM.A2,"A30"=FPKM.A3,"A60"=FPKM.A4,"A90"=FPKM.A5,"A120"=FPKM.A6,"B15"=FPKM.A7,"B30"=FPKM.A8,"B60"=FPKM.A9,"B90"=FPKM.A10,"B120"=FPKM.A11,"CON2"=FPKM.A12))
+    head(data,1)#查看首行
+  }
+  #归类
+  {
+    treat_a = c("A15","A30","A60","A90","A120")
+    treat_b = c("B15","B30","B60","B90","B120")
+    control = c("CON1","CON2")
+  }
+  #求对照组的均值，并删除原对照组
+  {
+    data$CTRL = as.matrix(apply(data[,control],1,mean))
+    data$CON1 = data$CON1 = NULL
+    data$CON2 = data$CON2 = NULL
+    control = c("CTRL")
+  }
+  #给列重排序
+  {
+    #dplyr包，该宏包功能强大。是数据科学tidyverse集合的核心部件之一。学习链接https://bookdown.org/wangminjie/R4DS/colwise.html
+    library(dplyr,warn.conflicts = F)
+    data = data %>% select(CTRL,A15,A30,A60,A90,A120,B15,B30,B60,B90,B120)
+  }
+  
+}
+
+#筛选AB两个处理组中差异表达的基因
+{
+  #求出a,b两个处理组每个基因的表达的最小值和最大值
+  {
+  #求出a,b两个处理组每个基因的表达的最小值
+  data$min_a = as.matrix(apply(data[,treat_a],1,min))
+  data$min_b = as.matrix(apply(data[,treat_b],1,min))
+  #求出a,b两个处理组每个基因的表达的最大值
+  data$max_a = as.matrix(apply(data[,treat_a],1,max))
+  data$max_b = as.matrix(apply(data[,treat_b],1,max))
+  }
+  #筛选ab两个处理组中差异表达的基因
+  {
+    #筛选A组的差异表达基因
+    {
+      data$log2FC_a_con_1 = log2((data$max_a)/(data$CTRL))
+      data$log2FC_a_con_2 = log2((data$CTRL)/(data$min_a))
+      data_filt = subset(data,data$log2FC_a_con_1>2|data$log2FC_a_con_2>2)
+      data_filt_a = data_filt[,c(control,treat_a)]
+      ##A组聚类
+      {
+        attach(data_filt_a)
+        #cluster1-max_CTRL
+        {
+          data_filt_a_cluster1 =  subset(data_filt_a,CTRL>apply(data_filt_a[,treat_a],1,max))
+          #将control设0做参考
+          #data_filt_a_cluster1 = data_filt_a_cluster1 - data_filt_a_cluster1 $ CTRL
+          #给行按照CTRL的值升序排序
+          {
+            data_filt_a_cluster1 = data_filt_a_cluster1[order(-data_filt_a_cluster1$CTRL),]
+          }
+        }
+        #cluster2-max_A15
+        {
+          data_filt_a_cluster2 =  subset(data_filt_a,A15>apply(data_filt_a[,c("CTRL","A30","A60","A90","A120")],1,max))
+          #将control设0做参考
+          #data_filt_a_cluster2 = data_filt_a_cluster2 - data_filt_a_cluster2 $ CTRL
+          #给行按照CTRL的值升序排序
+          {
+            data_filt_a_cluster2 = data_filt_a_cluster2[order(-data_filt_a_cluster2 $ A15),]
+          }
+        }
+        #cluster3-max_A30
+        {
+          data_filt_a_cluster3 = subset(data_filt_a,A30>apply(data_filt_a[,c("CTRL","A15","A60","A90","A120")],1,max))
+          #将control设0做参考
+          #data_filt_a_cluster2 = data_filt_a_cluster2 - data_filt_a_cluster2 $ CTRL
+          #给行按照CTRL的值升序排序
+          {
+            data_filt_a_cluster3 = data_filt_a_cluster3[order(-data_filt_a_cluster3 $ A30),]
+          }
+        }
+        #cluster4-max_A60
+        {
+          data_filt_a_cluster4 =  subset(data_filt_a,A60>apply(data_filt_a[,c("CTRL","A30","A15","A90","A120")],1,max))
+          #将control设0做参考
+          #data_filt_a_cluster4 = data_filt_a_cluster4 - data_filt_a_cluster4 $ CTRL
+          #给行按照CTRL的值升序排序
+          {
+            data_filt_a_cluster4 = data_filt_a_cluster4[order(-data_filt_a_cluster4 $ A60),]
+          }
+        }
+        #cluster5-max_A90
+        {
+          data_filt_a_cluster5 =  subset(data_filt_a,A90>apply(data_filt_a[,c("CTRL","A30","A15","A60","A120")],1,max))
+          #将control设0做参考
+          #data_filt_a_cluster4 = data_filt_a_cluster4 - data_filt_a_cluster4 $ CTRL
+          #给行按照A90的值升序排序
+          {
+            data_filt_a_cluster5 = data_filt_a_cluster5[order(-data_filt_a_cluster5 $ A90),]
+          }
+        }
+        #cluster6-max_A120
+        {
+          data_filt_a_cluster6 =  subset(data_filt_a,A120>apply(data_filt_a[,c("CTRL","A30","A15","A90","A60")],1,max))
+          #将control设0做参考
+          #data_filt_a_cluster6 = data_filt_a_cluster6 - data_filt_a_cluster6 $ CTRL
+          #给行按照A120的值升序排序
+          {
+            data_filt_a_cluster6 = data_filt_a_cluster6[order(-data_filt_a_cluster6 $ A120),]
+          }
+        }
+        detach(data_filt_a)
+        #合并
+        data_filt_a_cluster = rbind(data_filt_a_cluster1,data_filt_a_cluster2,data_filt_a_cluster3,data_filt_a_cluster4,data_filt_a_cluster5,data_filt_a_cluster6)
+        #求取log2值
+        data_filt_a_cluster = log10(data_filt_a_cluster[,1:base::ncol(data_filt_a_cluster)])
+      }
+    }
+    #筛选B组的差异表达基因
+    {
+      data$log2FC_b_con_1 = log2((data$max_b)/(data$CTRL))
+      data$log2FC_b_con_2 = log2((data$CTRL)/(data$min_b))
+      data_filt = subset(data,data$log2FC_b_con_1>4|data$log2FC_b_con_2>4)
+      data_filt_b = data_filt[,c(control,treat_b)]
+      ##B组聚类
+      {
+        attach(data_filt_b)
+        #cluster1-low_high
+        {
+          data_filt_b_cluster1 =  subset(data_filt_b,CTRL<apply(data_filt_b[,treat_b],1,min))
+          #将control设0做参考
+          data_filt_b_cluster1 = data_filt_b_cluster1 - data_filt_b_cluster1$CTRL
+        }
+        #cluster2-low_high_lower
+        {
+          data_filt_b_cluster2 =  subset(data_filt_b,CTRL<B15&CTRL>apply(data_filt_b[,c("B30","B60","B90","B120")],1,min))
+          #将control设0做参考
+          data_filt_b_cluster2 = data_filt_b_cluster2 - data_filt_b_cluster2$CTRL
+        }
+        #cluster3-high_low
+        {
+          data_filt_b_cluster3 =  subset(data_filt_b,CTRL>apply(data_filt_b[,treat_b],1,max))
+          #将control设0做参考
+          data_filt_b_cluster3 = data_filt_b_cluster3 - data_filt_b_cluster3$CTRL
+        }
+        #cluster4-high_low_higher
+        {
+          data_filt_b_cluster4 =  subset(data_filt_b,CTRL>B15&CTRL<apply(data_filt_b[,c("B30","B60","B90","B120")],1,max))
+          #将control设0做参考
+          data_filt_b_cluster4 = data_filt_b_cluster4 - data_filt_b_cluster4$CTRL
+        }
+        detach(data_filt_b)
+      }
+    }
+  }
+  
+  }
+
+##画图
+{
+  library(pheatmap)
+  #将data转化为matrix格式
+  #添加注释
+  annotation_col = data.frame(Grop= rep(c("Control","Treat"),c(1,5)),Dose = c(0,1:5))
+  annotation_row = data.frame(Cluster = rep(c("Max_CTRL","Max_A15","Max_A30","Max_A60","Max_A90","Max_A120"),c(173,775,165,114,115,169)))
+  color.key <- c("#3300CC","#3399FF","white","#FF3333","#CC0000")#调色
+  #运行没反应时，运行dev.off()
+  
+  #画A组的基因热图
+  {
+    rownames(annotation_col)=colnames(data_filt_a_cluster)
+    rownames(annotation_row)=rownames(data_filt_a_cluster)
+    #data_filt_a_cluster
+    {
+     pheatmap(data_filt_a_cluster,
+                    color = colorRampPalette(color.key)(50),
+                    border_color = NA,
+                    cluster_cols = F,
+                    cluster_rows = F,
+                    #分隔
+                    gaps_row = 
+                      c(
+                        base::nrow(data_filt_a_cluster1), 
+                        base::nrow(data_filt_a_cluster1) + base::nrow(data_filt_a_cluster2),
+                        base::nrow(data_filt_a_cluster1) + base::nrow(data_filt_a_cluster2) + base::nrow(data_filt_a_cluster3),
+                        base::nrow(data_filt_a_cluster1) + base::nrow(data_filt_a_cluster2) + base::nrow(data_filt_a_cluster3) + base::nrow(data_filt_a_cluster4),
+                        base::nrow(data_filt_a_cluster1) + base::nrow(data_filt_a_cluster2) + base::nrow(data_filt_a_cluster3) + base::nrow(data_filt_a_cluster4) + base::nrow(data_filt_a_cluster5)
+                    ),
+                    annotation_col = annotation_col,
+                    annotation_row = annotation_row,
+                    main = "Cluster about A",
+                    #scale = "row",
+                    show_rownames = F,show_colnames = T,
+                    cellwidth = 50, cellheight = 0.5
+      )
+    }
+  }
+  
+  #画B组的基因热图
+  {
+    rownames(annotation_col)=colnames(data_filt_b)
+    pheatmap(data_filt_b,
+            color = colorRampPalette(color.key)(50),
+            border_color = NA,
+            cluster_cols = F,
+            cluster_rows = F,
+            annotation_col=annotation_col,
+            main = "B",
+            scale = "row")
+    }
+  
+}
+#拼接
+if(FALSE)#全段注释
+  {
+    #安装并加载包
+    {
+      #BiocManager::install()
+      #BiocManager::install(c("cowplot","showtext"))
+      library(cowplot)
+      library(sysfonts)
+      library(showtextdb)
+      library(showtext)
+      library(grid)
+      library(ggplotify)
+    }
+    #转化热图为ggplot格式
+    {
+      library(ggplotify)
+      a1 = as.ggplot(a1)
+      a2 = as.ggplot(a2)
+      a3 = as.ggplot(a3)
+      a4 = as.ggplot(a4)
+      a5 = as.ggplot(a5)
+      a6 = as.ggplot(a6)
+    }
+    #建画布
+    {
+      grid.newpage() # 新建画布
+      layout_1 <- grid.layout(nrow = 6, ncol = 3,widths = c(10.7,80), 
+                              heights = c(base::nrow(data_filt_a_cluster1) * 0.5,
+                                          base::nrow(data_filt_a_cluster2) * 0.5,
+                                          base::nrow(data_filt_a_cluster3) * 0.5,
+                                          base::nrow(data_filt_a_cluster4) * 0.5,
+                                          base::nrow(data_filt_a_cluster5) * 0.5,
+                                          base::nrow(data_filt_a_cluster6) * 0.5
+                              )
+      ) # 分成4行1列共4个版块
+      pushViewport(viewport(layout = layout_1)) # 推出分为4个版块的视窗
+    }
+    #打印图
+    {
+      print(a1, vp = viewport(layout.pos.row = 1,
+                              layout.pos.col = 2
+      )) # 将a1输出到第一行
+      print(a2, vp = viewport(layout.pos.row = 2,
+                              layout.pos.col = c(1,2)
+      )) # 将a2输出到第二行
+      print(a3, vp = viewport(layout.pos.row = 3,
+                              layout.pos.col = c(1,2),
+                              just = bottom
+      )) # 将a3输出到第三行
+      print(a4, vp = viewport(layout.pos.row = 4,
+                              layout.pos.col = c(1,2)
+      )) # 将a4输出到第四行
+      print(a5, vp = viewport(layout.pos.row = 5,
+                              layout.pos.col = c(1,2)
+      )) # 将a5输出到第五行
+      print(a6, vp = viewport(layout.pos.row = 6,
+                              layout.pos.col = c(1,2)
+      )) # 将a6输出到第六行
+      # 添加主标题和分标题
+    }
+  }
+#加标签
+if(FALSE)#全段注释
+  {
+    #转化热图为ggblot格式
+    略
+    grid.text(label="        Clucster1 78(17%)
+          Low to high", x = 0.39,y = 0.85,gp=gpar(col="black",fontsize = 12,draw=TRUE))
+    grid.text(label="        Clucster2 211(46%)
+          Low to high to lower", x = 0.39,y =0.6,gp=gpar(col="black",fontsize = 12,draw=TRUE,just = c("left", "top")))
+    grid.text(label="        Clucster3 44(10%)
+          high to low", x = 0.39,y =0.34,gp=gpar(col="black",fontsize = 12,draw=TRUE))
+    grid.text(label="        Clucster4 122(27%)
+          high to low to higher", x = 0.39,y =0.16,gp=gpar(col="black",fontsize = 12,draw=TRUE)) 
+  }
+  
+#dev.off()#关闭当前设备
+
