@@ -1,0 +1,38 @@
+1、关于文件夹中的.md5sum文件
+*.md5sum 文件时用来检查文件是否被修改过的文件
+检查方式为：
+  (1) 先生成.md5sum：
+*md5sum 文件1，文件2，文件3...>file.md5sum
+（2）检查
+*md5sum --check file.md5sum(或者用-c也可以)
+#cmp命令，可比较两个文件是否相同。
+*cmp 文件1 文件2 #若相同则无输出，不同则输出第一个不同的地方
+
+2、执行fastqc质控数据文件
+#此处需要source ~/.bashrc来加载命令
+*fastqc -o.-t 5 dpy-7_1.fq.gz
+ 
+3、HISAT2
+#NCBI下载参考数据后，产生的上游文件无法在IGV上展示（以bw文件为主），老师推荐用igenome，我认为是参考基因组选错了
+#当出现IGV无法显示时，可手动加载参考基因组（fasta格式），可参考此教程：http://www.360doc.com/content/20/0224/00/68068867_894539457.shtml
+#加载前，还需要手动建立后缀为fai的索引，命令为
+*samtools faidx “fsata文件”#不要双引号
+#现在NCBI上下载物种的参考基因组（.fna#这是fasta格式的一种，一般以扩展名fa,fasta,fna）和注释文件（.gtf）
+#若下载的为.gz格式，则需要解压缩
+*gunzip *.gz
+###hisat2生成索引文件，为了提高比对速度，就需要根据参考基因组序列，经过BWT算法转换成index。其实hisat2-buld在运行的时候也会自己寻找exons和splice_sites，但是先做的目的是为了提高运行效率
+*hisat2_extract_splice_sites.py genomic.gtf > genomic.ss #这些后缀名可被后面的命令识别
+*hisat2_extract_exons.py genomic.gtf > genomic.exon #这些后缀名可被后面的命令识别
+*hisat2-build -p 16 GCF_000002985.6_WBcel235_genomic.fna --ss genomic.ss --exon genomic.exon genomic_tran #建立索引文件
+###mapping
+#mapping,生成.sam文件，16线程运行，--rna-strandness RF表示{forward, reverse}添加了该参数后，每条 reads 将在 sam 文件中出现 XS 的tag，‘+’ ‘-’ 代表该 reads 所在的转录本与基因组序列的关系。；--dta让结果适合用于stringtie进行转录本的拼接；-S <hit>指定输出的SAM文件。
+*hisat2 -p 16 --rna-strandness RF --dta -x indexes/genomic_tran -1 dpy-7_1.fq.gz -2 dpy-7_2.fq.gz -S dpy-7.sam
+###生成bam文件
+#生成.bam
+*samtools view -S dpy-7.sam -b > dpy-7.bam/dep-7.bam
+#排序sort  16线程 9级压缩(或者不压缩，后面使用merge命令合并)
+*samtools sort -@ 16 -l 9 ./dep-7.bam -o ./dep-7_sorted.bam
+#生成index文件
+*samtools index -@ 16 -b  ./dep-7_sorted.bam >dep-7_sorted.bam.bai
+
+##生成bed文件，bedtools工具

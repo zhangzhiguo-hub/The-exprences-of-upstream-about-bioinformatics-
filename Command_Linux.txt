@@ -1,0 +1,13 @@
+du -sh filename#查看文件大小
+ls -a#查看所有文件
+ls -l#查看文件属性
+rm -i #删除并询问
+mv 地址1/<文件1>  地址2/<文件2>
+
+#设置别名
+1.打开.bashrc文件
+*vi ~/.bashrc
+2.设置别名
+*alias ll="ls -alhF"#下次执行只需要输入ll命令，就可以执行ls -alhF
+*alias rm="rm -i"#保证文件误删除
+3.保存退出

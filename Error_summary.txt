@@ -1,0 +1,5 @@
+1.#NCBI下载参考数据后，产生的上游文件无法在IGV上展示（以bw文件为主），老师推荐用igenome
+#当出现IGV无法显示时，可手动加载参考基因组（fasta格式），可参考此教程：http://www.360doc.com/content/20/0224/00/68068867_894539457.shtml
+加载前，还需要手动建立后缀为fai的索引，命令为samtools faidx “fsata文件”#不要双引号
+现在NCBI上下载物种的参考基因组（.fna#这是fasta格式的一种，一般以扩展名fa,fasta,fna）和注释文件（.gtf）
+2.

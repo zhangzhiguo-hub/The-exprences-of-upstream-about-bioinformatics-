@@ -1,0 +1,23 @@
+BIOCONDUCTOR网站有
+物种 	                 OrgDB
+按蚊（Anopheles） 	org.Ag.eg.db
+拟南芥（Arabidopsis） 	org.At.tair.db
+牛（Brovine) 	org.Bt.eg.db
+蠕虫（Worm） 	org.Ce.eg.db
+犬（Canine） 	org.Cf.eg.db
+苍蝇（Fly) 	                 org.Dm.eg.db
+斑马鱼（Zebrafish） 	org.Dr.eg.db
+大肠杆菌 strain K12（E coli strain K12） 	org.EcK12.eg.db
+大肠杆菌strain Sakai(E coli strain Sakai) 	org.EcSakai.eg.db
+鸡（Chicken） 	org.Gg.eg.db
+人（Humanm) 	org.Hs.eg.db
+小鼠（Mouse） 	org.Mm.eg.db
+恒河猴（Rhesus） 	org.Mmu.eg.db
+疟原虫（Malaria） 	org.Pf.plasmo.db
+黑猩猩（Chimp） 	org.Pt.eg.db
+大鼠，褐家鼠（Rat) 	org.Rn.eg.db
+酵母（Yeast) 	org.Sc.sgd.db
+猪（Pig) 	                 org.Ss.eg.db
+爪蟾(Xenopus) 	org.Xl.eg.db
+https://www.omicsclass.com/article/262
+http://bioconductor.org/packages/release/BiocViews.html#___OrgDb
